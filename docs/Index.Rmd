@@ -1,0 +1,47 @@
+---
+title: "Zamia's coralloid root endophytes"
+ 
+output_dir: "docs"
+  
+output:
+  html_document:
+    theme: cosmo
+    toc: false
+    highlight: textmate
+    css: styles.css
+---
+
+
+### **Cyanobacteria detectability using an rbcL-X amplicon shows a reduced core microbiome in the coralloid roots of tropical gymnosperm**
+
+Authors:
+
+  Sandrine Toupin 
+ 
+  Adriel M. Sierra 
+ 
+  Marta Alonso-García
+ 
+  Maycol Madrid
+ 
+  Noris Salazar Allen 
+ 
+  Juan Carlos Villarreal A.
+
+
+
+
+Workflow for the analysis of the coralloid root endophytic microbiota
+
+
+    
+
+ **Scripts**
+
+[Bacterial community](BacterialCommunity16S.html)
+
+[Cyanobacteria community](Cyanobacterial_Community.html)
+
+[Core cyanobacteria](CoreMicrobiota.html)
+    
+    
