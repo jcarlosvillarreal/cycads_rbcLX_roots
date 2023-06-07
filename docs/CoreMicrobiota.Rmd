@@ -1,0 +1,227 @@
+---
+title: "Core microbiota of Zamia species"
+#output: github_document
+output: html_document
+always_allow_html: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r library, echo=FALSE, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(DT)
+library(car)
+library(phyloseq)
+library(vegan)
+library("ggpubr")
+library("tidyverse")
+library(labdsv)
+library(stringr)
+library(seqateurs)
+library(microbiome)
+library(BiodiversityR)
+library(RColorBrewer)
+```
+
+### Zamia Coralloid root Core Cyanobacteria
+
+### Contributors
+
+Juan Carlos Villarreal A.
+
+Adriel M. Sierra
+
+We use the two dataset generated with two amplicon markers to identify the core microbiota.
+
+First we use a subset dataset with only ASVs whose phylum corresponds to Cyanobacteria in the 16S dataset.
+
+```{r data16S}
+knitr::opts_knit$set(root.dir = "/Users/adrielsierra/Documents/GitHub/cycads_rbcLX_roots")
+root16ps = readRDS("./Data/Zamia_root_bacteria16s_ps_mai23.rds")
+ps_cyano = subset_taxa(root16ps, Phylum=="Cyanobacteria")
+```
+
+```{r edits, include=FALSE}
+dna = Biostrings::DNAStringSet(taxa_names(ps_cyano))
+names(dna) = taxa_names(ps_cyano)
+ps_cyano = merge_phyloseq(ps_cyano, dna)
+taxa_names(ps_cyano) = paste0("ASV", seq(ntaxa(ps_cyano)))
+```
+
+Second, we use the cyanobacterial community identified with the amplicon marker rbcL-X.
+
+```{r data.rbclx}
+knitr::opts_knit$set(root.dir = "/Users/adrielsierra/Documents/GitHub/cycads_rbcLX_roots")
+rbclx.ps = readRDS("./Data/RBCLX_ps_rootZamia.rds")
+rbclx.ps
+```
+
+**16S**
+
+*Zamia pseudoparasitica*
+
+```{r rank16S_zp, include=TRUE}
+cyano.zpseudo = subset_samples(ps_cyano, Species %in% c("Zamia pseudoparasitica"))
+rank.pseudo16 = rankabundance(otu_table(cyano.zpseudo))
+rankabunplot(rank.pseudo16, labels=" ",scale="logabun",  lty=2, pch= 20)
+```
+
+*Zamia nana*
+  
+```{r rank16S_zn, include=TRUE}  
+cyano.znana = subset_samples(ps_cyano, Species %in% c("Zamia nana"))
+rank.nana16 = rankabundance(otu_table(cyano.znana))
+rankabunplot(rank.nana16, labels=" ",scale="logabun",  lty=2, pch= 20)
+
+```
+
+**rbcL-X**
+
+*Zamia pseudoparasitica*
+
+```{r rankrbclxzp, include=TRUE}
+ps_pseudo = subset_samples(rbclx.ps, Species_name %in% c("Zamia pseudoparasitica"))
+rank.pseudo = rankabundance(t(otu_table(ps_pseudo)))
+rankabunplot(rank.pseudo, labels=" ",scale="logabun",  lty=2, pch= 20)
+```
+
+*Zamia nana*
+
+```{r rankrbclx_zn, include=TRUE}
+ps_nana = subset_samples(rbclx.ps, Species_name %in% c("Zamia nana"))
+rank.nana = rankabundance(t(otu_table(ps_nana)))
+rankabunplot(rank.nana, labels=" ",scale="logabun",  lty=2, pch= 20)
+```
+
+### Core microbiome. 
+Indicator species analysis, the labdsv package (version 2.0-1) was used to identify which ASVs were relatively more abundant and predominantly found to one of the specific Zamia species, in contrast to the other host species. 
+
+##### The script is adapted from https://bocasbiome.github.io/wf1.html
+
+The Indicator species analysis was done for both marker. A core microbiota was only observed when we analyzed the dataset generated from the rbcL-X marker. Therefore, here is only presented for the rbcL-X.
+
+```{r indicator, include=TRUE}
+zamia.host = data.frame(t(otu_table(rbclx.ps)))
+cyano.ASV = tibble::remove_rownames(zamia.host)
+host.group = data.frame(sample_data(rbclx.ps)) %>%
+  select(Species_name)
+
+host.group$Status = host.group$Species
+host.group = host.group[, c(2,1)]
+host.group$Status = str_replace(host.group$Status, "Zamia nana", "1")
+host.group$Status = str_replace(host.group$Status, "Zamia pseudoparasitica", "2")
+host.group = tibble::rownames_to_column(host.group, "Label")
+host.group$Status =  as.integer(host.group$Status)
+host.group$Species =  as.character(host.group$Species)
+```
+
+Here we calculate the indicator values.
+
+```{r ind_val, include=TRUE}
+set.seed(1280)
+iva = indval(cyano.ASV, host.group$Status)
+
+gr = iva$maxcls[iva$pval <= 0.01]
+iv = iva$indcls[iva$pval <= 0.01]
+pv = iva$pval[iva$pval <= 0.01]
+fr = apply(cyano.ASV > 0, 2, sum)[iva$pval <= 0.01]
+indval.out = data.frame(group = gr, indval = iv, pval = pv, freq = fr)
+indval.out = indval.out[order(indval.out$group, -indval.out$indval),]
+indval.out
+
+indval.out$prob.corrected = p.adjust(indval.out$pval, "bonferroni")
+
+indval.out
+```
+
+### core microbiome using threshold frequency
+
+For the threshold frequency base method, we used the microbiome R package (Lahti and Shetty 2012). Due to the lack of consensus about a fixed threshold (Risely 2020). We tested for the presence of a ‘core’ microbiota as defined by any taxon with a prevalence higher than 50%, 75% or 90% (Jorge et al. 2020; Neu et al. 2021). We pruned out the phyloseq object to retain those samples with more than 50 reads. We detected the core microbiota with the function (core_members) and estimated the total abundance of specific members of the core microbiota in each sample (sample_sums).
+
+To allow for comparisons of the core microbiomes, we considered samples that we have amplicon sequencing data for the two markers and from the same locality.
+
+```{r microbiome, include=TRUE}
+ps_cyano_sub = subset_samples(ps_cyano, Locality !="El Cope")
+ps_cyano_prun = prune_taxa(taxa_sums(ps_cyano_sub)!=0, ps_cyano_sub)
+```
+
+First, we pruned samples with less than 50 reads, and transform incidence of ASVs in the samples to compositional relative abundance.  
+
+```{r prepare_data, include=TRUE}
+which(!rowSums(otu_table(rbclx.ps)) > 50)
+total = median(sample_sums(rbclx.ps))
+standf = function(x, t=total) round(t * (x / sum(x)))
+rbclx.ps = transform_sample_counts(rbclx.ps, standf)
+
+ps2prun.ra = microbiome::transform(rbclx.ps, "compositional")
+
+ps2prun.ra2 = prune_taxa(taxa_sums(ps2prun.ra) > 0, ps2prun.ra)
+taxonomy = as.data.frame(tax_table(ps2prun.ra2))
+```
+
+We first extract the taxonomy table. Subset this taxonomy table to include only core ASVs with the different threshold. Total core abundance in each sample (sum of abundances of the core members).
+
+```{r core_threshold_50, include=TRUE}
+core50_name = core_members(ps2prun.ra2, detection = 0.0001, prevalence = 50/100, include.lowest = FALSE)
+
+core50_seq = core_members(ps2prun.ra2, detection = 0.0001, prevalence = 50/100, include.lowest = FALSE)
+
+core.abundance.50 = sample_sums(core(ps2prun.ra2, detection = 0.0001, prevalence = 50/100))
+DT::datatable(as.data.frame(core.abundance.50))
+
+core_taxa_id50 = subset(taxonomy, rownames(taxonomy) %in% core50_name)
+DT::datatable(core_taxa_id50)
+```
+
+```{r core_threshold_75, include=TRUE}
+
+core75_name = core_members(ps2prun.ra2, detection = 0.0001, prevalence = 75/100, include.lowest = FALSE)
+
+core75_seq = core_members(ps2prun.ra2, detection = 0.0001, prevalence = 75/100, include.lowest = FALSE)
+
+core.abundance.75 = sample_sums(core(ps2prun.ra2, detection = 0.0001, prevalence = 75/100))
+DT::datatable(as.data.frame(core.abundance.75))
+
+core_taxa_id75 = subset(taxonomy, rownames(taxonomy) %in% core75_name)
+DT::datatable(core_taxa_id75)
+```
+
+```{r core_threshold_90, include=TRUE}
+core90_name = core_members(ps2prun.ra2, detection = 0.0001, prevalence = 90/100, include.lowest = FALSE)
+
+core90_seq = core_members(ps2prun.ra2, detection = 0.0001, prevalence = 90/100, include.lowest = FALSE)
+
+core.abundance.90 = sample_sums(core(ps2prun.ra2, detection = 0.0001, prevalence = 90/100))
+DT::datatable(as.data.frame(core.abundance.90))
+
+core_taxa_id90 = subset(taxonomy, rownames(taxonomy) %in% core90_name)
+DT::datatable(core_taxa_id90)
+```
+
+Visualitation of the core microbiome with Core line plots considering the compositional (relative) abundances.
+
+```{r core_plot, include=TRUE}
+det = c(0, 0.1, 0.5, 2, 5, 20)/100
+prevalences = seq(.05, 1, .05)
+
+plot_core(ps2prun.ra2, prevalences = prevalences, 
+          detections = det, plot.type = "lineplot") + 
+  xlab("Relative Abundance (%)") + 
+  theme_bw()
+
+
+prevalences = seq(.05, 1, .05)
+detections = round(10^seq(log10(1e-3), log10(.2), length = 10), digits = 4)
+
+p.core = plot_core(ps2prun.ra2, 
+                    plot.type = "heatmap", 
+                    colours = rev(brewer.pal(5, "Spectral")),
+                    prevalences = prevalences, 
+                    detections = detections, 
+                    min.prevalence = .5) + theme_classic() +
+xlab("Detection Threshold (Relative Abundance (%))")
+
+p.core 
+```

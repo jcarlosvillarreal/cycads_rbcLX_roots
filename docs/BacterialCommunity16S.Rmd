@@ -1,0 +1,152 @@
+---
+title: "Analyses of bacterial diversity using 16S"
+#output: github_document
+output: html_document
+always_allow_html: true
+---
+
+```{r library, echo=FALSE, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(DT)
+library(car)
+library(phyloseq)
+library(vegan)
+library("ggpubr")
+library("tidyverse")
+```
+
+### Zamia Coralloid root bacterial community
+
+### Contributors
+
+Juan Carlos Villarreal A.
+
+Adriel M. Sierra
+
+
+To study the overall coralloid root bacterial community of Zamia species, we used the processed phyloseq object with the whole bacterial community.
+
+The dataset include a total of fourty four coralloid roots of Z. pseudoparasitica from two localities, and ten of Zamia nana from one locality
+
+```{r data16S}
+knitr::opts_knit$set(root.dir = "/Users/adrielsierra/Documents/GitHub/cycads_rbcLX_roots")
+root16ps = readRDS("./Data/Zamia_root_bacteria16s_ps_mai23.rds")
+root16ps
+```
+
+### Compute and visualize alpha diversity
+
+Alpha diversity was assessed using four indexes: i) the Chao index which shows the observed richness, ii) the exponential of Shannon which weights the ASVs by their frequency, iii) the Simpson's diversity index which considers the presence and relative abundances of ASVs present in a sample, and iv) the Pielou index which measures diversity along with species richness. 
+
+```{r diversity, include=TRUE}
+richness.df = estimate_richness(root16ps, split = TRUE, measures = c("Observed","Shannon", "Simpson"))
+
+richness.df$Pielou = (richness.df$Shannon)/log(specnumber(otu_table(root16ps)))
+```
+
+Now, we add extra column with read count by sample, the Zamia host species and locality respective to each sample
+
+```{r formatingdiv, include=TRUE}
+richness.df$readcount = sample_sums(root16ps)
+
+richness.df$Host = as.factor(root16ps@sam_data$Species)
+
+richness.df$Locality = as.factor(root16ps@sam_data$Locality)
+```
+
+### Alpha diversity table : Alpha diversity (richness indexes) for the complete bacterial community in coralloid roots of the two species Z. nana and Z. pseudoparasitica.
+
+```{r diversitytable, include=TRUE}
+
+ DT::datatable(richness.df) %>%
+formatRound(columns = c("Shannon", "Simpson", "Pielou"), digits=4)
+
+```
+
+The assumptions of normality was tested with the Shapiro-Wilk Test
+
+```{r shapiro, include=TRUE}
+shapiro.test(richness.df$Observed)
+shapiro.test(richness.df$Shannon)
+shapiro.test(richness.df$Simpson)
+shapiro.test(richness.df$Pielou)
+```
+
+The homogeneity of variance were tested with the Levene test
+
+```{r levenetest, include=TRUE}
+test_names <- c( "Observed", "Shannon", "Simpson", "Pielou")
+for (test in test_names) {
+  test_formula <- paste(test,"~","Host")
+  print(paste("Testing homogeneity of variance:", test))
+  print(leveneTest(as.formula(test_formula), data=richness.df))
+}
+```
+
+### Statistical test for significance between host species and study localities
+
+Here, the significant differences between species and markers were assessed using the Kruskal-Wallis nonparametric test. Post hoc pairwise comparisons were performed with the exact sum of Wilcoxon ranks. 
+
+```{r Kruskaltest, include=TRUE}
+for (test in test_names) {
+  test_formula <- paste(test,"~","Host")
+  print(paste("Alpha diversity:", test))
+  print(kruskal.test(as.formula(test_formula), data=richness.df))
+}
+
+for (test in test_names) {
+  test_formula <- paste(test,"~","Locality")
+  print(paste("Alpha diversity:", test))
+  print(kruskal.test(as.formula(test_formula), data=richness.df))
+}
+```
+
+### Alpha diversity Figures : Alpha diversity (richness indexes) for the complete bacterial community in coralloid roots of the two species Z. nana and Z. pseudoparasitica.
+
+```{r divplot, include=TRUE}
+
+Figsupp_A = 
+  ggplot(richness.df, aes(x=Host, y=Observed, fill=Locality)) + 
+  ggtitle("Alpha Diversity", subtitle="Complete bacterial community")+
+  scale_fill_brewer(palette="Pastel2")+
+  geom_boxplot(width = 0.3)+
+  #scale_fill_grey()+
+  theme_classic()+
+  theme(text = element_text(size=12))+
+  labs(x=" ", y = "Observed species")
+
+Figsupp_A
+
+Figsupp_B = 
+  ggplot(richness.df, aes(x=Host, y=Shannon, fill=Locality)) + 
+  #ggtitle("Alpha Diversity", subtitle="Complete bacterial community")+
+  scale_fill_brewer(palette="Pastel2")+
+  geom_boxplot(width = 0.3)+
+  #scale_fill_grey()+
+  theme_classic()+ theme(text = element_text(size=12))+
+  labs(x=" ", y = "Shannon")
+
+Figsupp_B
+
+Figsupp_C = 
+  ggplot(richness.df, aes(x=Host, y=Simpson, fill=Locality)) + 
+  #ggtitle("Alpha Diversity", subtitle="Complete bacterial community")+
+  scale_fill_brewer(palette="Pastel2")+
+  geom_boxplot(width = 0.3)+
+  #scale_fill_grey()+
+  theme_classic()+ theme(text = element_text(size=12))+
+  labs(x=" ", y = "Simpson")
+  
+Figsupp_C
+
+Figsupp_D = 
+  ggplot(richness.df, aes(x=Host, y=Pielou, fill=Locality)) + 
+  #ggtitle("Alpha Diversity", subtitle="Complete bacterial community")+
+  scale_fill_brewer(palette="Pastel2")+
+  geom_boxplot(width = 0.3)+
+  #scale_fill_grey()+
+  theme_classic()+ theme(text = element_text(size=12))+
+  labs(x=" ", y = "Pielou")
+
+Figsupp_D
+```

@@ -1,0 +1,288 @@
+---
+title: "Analyses of bacterial diversity"
+#output: github_document
+output: html_document
+always_allow_html: true
+---
+
+```{r library, echo=FALSE, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(DT)
+library(car)
+library(phyloseq)
+library(vegan)
+library("ggpubr")
+library("tidyverse")
+```
+
+### Zamia Coralloid root Cyanobacteria community
+
+### Contributors
+
+Juan Carlos Villarreal A.
+
+Adriel M. Sierra
+
+To study the coralloid root cyanobacteria community of two Zamia species, we used the processed *phyloseq* object with the whole bacterial community identified using the 16S marker. From this dataset, we subset all ASVs whose phylum corresponds to Cyanobacteria. 
+
+The dataset includes a total of forty-four coralloid roots of *Z. pseudoparasitica* from two localities, and ten of *Zamia nana* from one locality.
+
+First we use a subset dataset with only ASVs whose phylum corresponds to Cyanobacteria in the 16S dataset.
+
+```{r data16S}
+knitr::opts_knit$set(root.dir = "/Users/adrielsierra/Documents/GitHub/cycads_rbcLX_roots")
+root16ps = readRDS("./Data/Zamia_root_bacteria16s_ps_mai23.rds")
+ps_cyano = subset_taxa(root16ps, Phylum=="Cyanobacteria")
+ps_cyano
+```
+
+Second, we use the cyanobacterial community identified with the amplicon marker rbcL-X.
+
+```{r data.rbclx}
+knitr::opts_knit$set(root.dir = "/Users/adrielsierra/Documents/GitHub/cycads_rbcLX_roots")
+rbclx.ps = readRDS("./Data/RBCLX_ps_rootZamia.rds")
+rbclx.ps
+```
+
+
+Analyses of Cyanobacterial diversity using the 16S and rbcL-X markers
+
+### Compute and visualize alpha diversity
+
+Alpha diversity was assessed using four indexes: i) the Chao index which shows the observed richness, ii) the exponential of Shannon which weights the ASVs by their frequency, iii) the Simpson's diversity index which considers the presence and relative abundances of ASVs present in a sample, and iv) the Pielou index which measures diversity along with species richness. 
+
+To the data frame we add an extra column with read count by sample, the Zamia host species, and locality respective to each sample.
+
+```{r diversity16S, include=TRUE}
+richness.df.cyano = estimate_richness(ps_cyano, split = TRUE, measures = c("Observed","Shannon", "Simpson"))
+richness.df.cyano$Pielou = richness.df.cyano$Shannon/log(specnumber(otu_table(ps_cyano)))
+richness.df.cyano$readcount = sample_sums(ps_cyano)
+richness.df.cyano$Host = as.factor(ps_cyano@sam_data$Species)
+richness.df.cyano$Locality = as.factor(ps_cyano@sam_data$Locality)
+```
+
+```{r diversityrbclX, include=TRUE}
+richness.rbclx.df = estimate_richness(rbclx.ps, split = TRUE, measures = c("Observed","Shannon", "Simpson"))
+
+richness.rbclx.df$Pielou = richness.rbclx.df$Shannon/log(specnumber(t(otu_table(rbclx.ps))))
+richness.rbclx.df$readcount = sample_sums(rbclx.ps)
+richness.rbclx.df$Host = as.factor(rbclx.ps@sam_data$Species_name)
+richness.rbclx.df$Locality = as.factor(rbclx.ps@sam_data$Site)
+```
+
+### Alpha diversity table : Richness indexes estimates of the cyanobacteria community identified with the 16S marker in coralloid roots of the two species *Z. nana* and *Z. pseudoparasitica*.
+
+
+```{r diversitytable16s, include=TRUE}
+DT::datatable(richness.df.cyano) %>%
+    formatRound(columns=c('Shannon', 'Simpson', 'Pielou'), digits=4)
+```
+
+### Alpha diversity table : Richness indexes estimates of the cyanobacteria community identified with the rbcL-X marker in coralloid roots of the two species *Z. nana* and *Z. pseudoparasitica*.
+
+```{r diversitytablerbclx, include=TRUE}
+DT::datatable(richness.rbclx.df)%>%
+    formatRound(columns=c('Shannon', 'Simpson', 'Pielou'), digits=4)
+```
+
+### Correlation of richness with read count
+
+Here, we evaluated if sequencing depth bias toward over or underestimation of cyanobacterial community diversity by correlating the observed species richness and the read count by sample (coverage) with the Kendall method.
+
+**16S**
+
+```{r cor.16S, include=TRUE}
+cor.16s.cyano = ggscatter(richness.df.cyano, x = "readcount", y = "Observed", 
+          add = "reg.line", conf.int = TRUE, 
+          cor.coef = TRUE, cor.method = "kendall",
+          xlab = "Read count", ylab = "Observed species")
+cor.16s.cyano
+```
+
+**rbcL-X**
+
+```{r cor.rbclx, include=TRUE}
+cor.rbclx = ggscatter(richness.rbclx.df, x = "readcount", y = "Observed", 
+          add = "reg.line", conf.int = TRUE, 
+          cor.coef = TRUE, cor.method = "kendall",
+          xlab = "Read count", ylab = "Observed species")
+cor.rbclx
+```
+
+
+### Rarefaction curves
+
+For the two Zamia species separately, species accumulation curves (100 permutations) were generated from sample-based rarefactions using the Coleman method (Coleman et al. 1982) with the function specaccum in the vegan package (Oksanen et al. 2016). 
+
+**16S**
+
+```{r rare16S, include=TRUE}
+cyano.zpseudo <- subset_samples(ps_cyano, Species %in% c("Zamia pseudoparasitica"))
+cyano.znana <- subset_samples(ps_cyano, Species %in% c("Zamia nana"))
+
+rarezpseudo.cyano<-specaccum(otu_table(cyano.zpseudo), method = "coleman", permutations = 100, conditioned =TRUE, gamma = "coleman")
+plot(rarezpseudo.cyano, main="Zamia pseudoparasitica", font.main= 4, add = F, ci = 2, ci.type = "polygon", col = "black",  lwd=1.9, ci.lty=0, ci.col = rgb(blue=0.1, green=0, red=0, alpha =0.3), xlab = "Number of Samples", ylab="Number of ASVs")
+
+rareznana.cyano<-specaccum(otu_table(cyano.znana), method = "coleman", permutations = 100, conditioned =TRUE, gamma = "coleman")
+plot(rareznana.cyano, main= "Zamia nana", font.main= 4, add = F, ci = 2, ci.type = "polygon", col = "black",  lwd=1.9, ci.lty=0, ci.col = rgb(blue=0.1, green=0, red=0, alpha =0.3), xlab = "Number of Samples", ylab="Number of ASVs")
+```
+
+**rbcL-X**
+
+```{r rare.rbclx, include=TRUE}
+ps_pseudo <- subset_samples(rbclx.ps, Species_name %in% c("Zamia pseudoparasitica"))
+ps_nana <- subset_samples(rbclx.ps, Species_name %in% c("Zamia nana"))
+
+rarezpseudo.rbclx <-specaccum(t(otu_table(ps_pseudo)), method = "coleman", permutations = 100, conditioned =TRUE, gamma = "coleman")
+plot(rarezpseudo.rbclx, main="Zamia pseudoparasitica", font.main= 4, add = F, ci = 2, ci.type = "polygon", col = "black",  lwd=1.9, ci.lty=0, ci.col = rgb(blue=0.1, green=0, red=0, alpha =0.3), xlab = "Number of Samples", ylab="Number of ASVs")
+
+rareznana.rbclx <-specaccum(t(otu_table(ps_nana)), method = "coleman", permutations = 100, conditioned =TRUE, gamma = "coleman")
+plot(rareznana.rbclx, main= "Zamia nana", font.main= 4, add = F, ci = 2, ci.type = "polygon", col = "black",  lwd=1.9, ci.lty=0, ci.col = rgb(blue=0.1, green=0, red=0, alpha =0.3), xlab = "Number of Samples", ylab="Number of ASVs")
+```
+
+### Extrapolate species richness
+
+Estimated species richness was also extrapolated for each species with three non-parametric methods. The Chao Index with standard error (Chao 1987) was estimated using the small sampling corrections to reduce estimation bias by multiplying (N-1)/N to the basic Chao equation (Gotelli & Colwell 2001) as implemented by the function specpool in the vegan R package. First-order Jackknife estimators and the Bootstrap estimator with standard error were also used, as it is considered a more accurate measure of species richness from datasets with a high number of singletons and doubletons. Pearson's Chi-squared Test was used to test for significant differences between the observed species and extrapolated richness with the three non-parametric methods.
+
+**16S**
+
+```{r extrapo16s, include=TRUE}
+pool16s = specpool(ps_cyano@otu_table, ps_cyano@sam_data$Species, smallsample = TRUE)
+
+DT::datatable(pool16s)%>%
+    formatRound(colnames(pool16s),digits=2)
+```
+
+```{r extra.plot, include=TRUE}
+cyano_pseudo_acc = poolaccum(cyano.zpseudo@otu_table, permutations = 999)
+plot(cyano_pseudo_acc)
+chisq.test(cyano_pseudo_acc$chao, cyano_pseudo_acc$S, correct = TRUE)
+chisq.test(cyano_pseudo_acc$jack1, cyano_pseudo_acc$S, correct = TRUE)
+chisq.test(cyano_pseudo_acc$boot, cyano_pseudo_acc$S, correct = TRUE)
+
+cyano_nana_acc = poolaccum(cyano.znana@otu_table, permutations = 999)
+plot(cyano_nana_acc)
+
+chisq.test(cyano_nana_acc$chao, cyano_nana_acc$S,correct = TRUE)
+chisq.test(cyano_nana_acc$jack1, cyano_nana_acc$S, correct = TRUE)
+chisq.test(cyano_nana_acc$boot, cyano_nana_acc$S, correct = TRUE)
+```
+
+**rbcL-X**
+
+```{r extraporbclx, include=TRUE}
+poolrbclx = specpool(t(rbclx.ps@otu_table), rbclx.ps@sam_data$Species_name, smallsample = TRUE)
+
+DT::datatable(poolrbclx)%>%
+    formatRound(colnames(poolrbclx), digits=2)
+```
+
+```{r extraplot2, include=TRUE}
+ps_pseudo_acc = poolaccum(t(ps_pseudo@otu_table), permutations = 999)
+plot(ps_pseudo_acc)
+
+chisq.test(ps_pseudo_acc$chao, ps_pseudo_acc$S,correct = TRUE)
+chisq.test(ps_pseudo_acc$jack1, ps_pseudo_acc$S, correct = TRUE)
+chisq.test(ps_pseudo_acc$boot, ps_pseudo_acc$S, correct = TRUE)
+
+ps_nana_acc = poolaccum(t(ps_nana@otu_table), permutations = 999)
+plot(ps_nana_acc)
+
+chisq.test(ps_nana_acc$chao, ps_nana_acc$S, correct = TRUE)
+chisq.test(ps_nana_acc$jack1, ps_nana_acc$S,  correct = TRUE)
+chisq.test(ps_nana_acc$boot, ps_nana_acc$S, correct = TRUE)
+```
+
+### Complete richness dataframe with the two markers
+
+First we joined in a single the two dataframes with richness estimates with the 16S marker and rbcL-X marker.
+
+```{r compile_df, include=TRUE}
+cyano.div.com = data.frame(rbind(richness.df.cyano, richness.rbclx.df))
+cyano.div.com$Marker = as.factor(c(rep("16S",53), rep("rbcL-X",25)))
+```
+
+The assumptions of normality was tested with the Shapiro-Wilk Test for the richness estimates from the dataset generated with the rbcL-X marker
+
+```{r shap}
+shapiro.test(richness.rbclx.df$Observed)
+shapiro.test(richness.rbclx.df$Shannon)
+shapiro.test(richness.rbclx.df$Simpson)
+shapiro.test(richness.rbclx.df$Pielou)
+```
+
+The homogeneity of variance were tested with the Levene test 
+
+```{r levenetest.2, include=TRUE}
+test_names <- c( "Observed", "Shannon", "Simpson", "Pielou")
+for (test in test_names) {
+  test_formula <- paste(test,"~","Marker")
+  print(paste("Testing homogeneity of variance:", test))
+  print(leveneTest(as.formula(test_formula), data=cyano.div.com))
+}
+```
+
+### Statistical test for significance between host species and study localities
+
+Here, the significant differences between species and markers were assessed by fitting an Analysis of Variance Model (ANOVA). Two-way ANOVA model use *Zamia* species host and molecular marker as predictors of alpha diversity richness indexes in the coralloid roots.  
+
+```{r anova, include=TRUE}
+for (test in test_names) {
+  test_formula <- paste(test,"~","Host*Marker")
+  print(paste("Alpha diversity:", test))
+  print(summary(aov(as.formula(test_formula), data=cyano.div.com)))
+}
+```
+
+### Alpha diversity Figures : Alpha diversity (richness indexes) for the complete bacterial community in coralloid roots of the two species *Z. nana* and *Z. pseudoparasitica*.
+
+```{r divplot.marker, include=TRUE}
+
+cyano.div.com$Locality = factor(cyano.div.com$Locality, levels= c("El Valle, Cerro Gaital", "Donoso", "El Cope"))
+
+
+Figsupp_A_cyano = 
+  ggplot(cyano.div.com, aes(x=Host, y=Observed, fill=Marker)) + 
+  ggtitle("Alpha Diversity", subtitle="Cyanobacteria community")+
+  scale_fill_brewer(palette="Pastel2")+
+  geom_boxplot(width = 0.3)+
+  #scale_fill_grey()+
+  theme_classic()+
+  theme(text = element_text(size=20))+
+  labs(x=" ", y = "Observed species")
+
+Figsupp_A_cyano
+
+Figsupp_B_cyano = 
+  ggplot(cyano.div.com, aes(x=Host, y=Shannon, fill=Marker)) + 
+  #ggtitle("Alpha Diversity", subtitle="Complete bacterial community")+
+  scale_fill_brewer(palette="Pastel2")+
+  geom_boxplot(width = 0.3)+
+  #scale_fill_grey()+
+  theme_classic()+ theme(text = element_text(size=20))+
+  labs(x=" ", y = "Shannon")
+
+Figsupp_B_cyano
+
+Figsupp_C_cyano = 
+  ggplot(cyano.div.com, aes(x=Host, y=Simpson, fill=Marker)) + 
+  #ggtitle("Alpha Diversity", subtitle="Complete bacterial community")+
+  scale_fill_brewer(palette="Pastel2")+
+  geom_boxplot(width = 0.3)+
+  #scale_fill_grey()+
+  theme_classic()+ theme(text = element_text(size=20))+
+  labs(x=" ", y = "Simpson")
+
+Figsupp_C_cyano
+
+Figsupp_D_cyano = 
+  ggplot(cyano.div.com, aes(x=Host, y=Pielou, fill=Marker)) + 
+  #ggtitle("Alpha Diversity", subtitle="Complete bacterial community")+
+  scale_fill_brewer(palette="Pastel2")+
+  geom_boxplot(width = 0.3)+
+  #scale_fill_grey()+
+  theme_classic()+ theme(text = element_text(size=20))+
+  labs(x=" ", y = "Pielou")
+
+Figsupp_D_cyano
+```
