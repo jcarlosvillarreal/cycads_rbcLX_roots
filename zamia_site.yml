@@ -1,0 +1,25 @@
+name: "zamiacoralloids"
+title: ""
+base_url: https://zamiacoralloids.github.io
+repository_url: https://github.com/cycads_rbcLX_roots/web/
+description: |
+  zamiacoralloids
+output_dir: "public_build"
+
+- text: "Workflows"
+      menu:
+        - text: "Bacterial community"
+          href: BacterialCommunity16S.html
+        - text: "Cyanobacteria community"
+          href: Cyanobacterial_Community.html
+        - text: "Core cyanobacteria"
+          href: CoreMicrobiota.html
+
+output_dir: "docs"
+  
+output:
+  html_document:
+    theme: cosmo
+    toc: false
+    highlight: textmate
+    css: styles.css
